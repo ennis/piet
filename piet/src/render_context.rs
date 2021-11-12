@@ -66,7 +66,7 @@ where
     /// An associated factory for creating text layouts and related resources.
     type Text: Text<TextLayout = Self::TextLayout>;
 
-    /// The type use to represent text layout objects.
+    /// The type used to represent text layout objects.
     type TextLayout: TextLayout;
 
     /// The associated type of an image.

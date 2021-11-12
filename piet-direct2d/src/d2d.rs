@@ -48,6 +48,7 @@ use winapi::Interface;
 
 use crate::conv::{circle_to_d2d, rect_to_rectf, rounded_rect_to_d2d, to_point2f};
 use crate::dwrite::TextLayout;
+use winapi::um::d3d11::{ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D};
 
 pub enum FillRule {
     EvenOdd,
@@ -1045,6 +1046,7 @@ impl Bitmap {
         }
     }
 }
+
 
 impl Effect {
     /// Set the effect's input.

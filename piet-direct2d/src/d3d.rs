@@ -4,18 +4,14 @@ use std::ptr::null_mut;
 pub use winapi::shared::dxgi::DXGI_MAP_READ;
 
 use winapi::shared::dxgi::{IDXGIDevice, IDXGISurface};
-use winapi::shared::dxgiformat::DXGI_FORMAT_R8G8B8A8_UNORM;
+use winapi::shared::dxgiformat::{DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM};
 use winapi::shared::dxgitype::DXGI_SAMPLE_DESC;
 use winapi::shared::winerror::{HRESULT, SUCCEEDED};
-use winapi::um::d3d11::{
-    D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, D3D11_BIND_FLAG,
-    D3D11_BIND_RENDER_TARGET, D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_FLAG,
-    D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_SDK_VERSION,
-    D3D11_TEXTURE2D_DESC, D3D11_USAGE, D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING,
-};
+use winapi::um::d3d11::{D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, D3D11_BIND_FLAG, D3D11_BIND_RENDER_TARGET, D3D11_BIND_SHADER_RESOURCE, D3D11_CPU_ACCESS_FLAG, D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX, D3D11_RESOURCE_MISC_SHARED_NTHANDLE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE, D3D11_USAGE_DEFAULT, D3D11_USAGE_STAGING, D3D11_RESOURCE_MISC_FLAG};
 use winapi::um::d3dcommon::D3D_DRIVER_TYPE_HARDWARE;
 use winapi::Interface;
 
+use std::ptr;
 use wio::com::ComPtr;
 
 #[derive(Debug)]
@@ -38,6 +34,8 @@ unsafe impl Send for D3D11DeviceContext {}
 pub enum TextureMode {
     Target,
     Read,
+    /// Creates a texture that supports CreateSharedHandle
+    Shared
 }
 
 impl TextureMode {
@@ -45,12 +43,14 @@ impl TextureMode {
         match self {
             TextureMode::Target => D3D11_USAGE_DEFAULT,
             TextureMode::Read => D3D11_USAGE_STAGING,
+            TextureMode::Shared => D3D11_USAGE_DEFAULT
         }
     }
 
     pub fn bind_flags(&self) -> D3D11_BIND_FLAG {
         match self {
             TextureMode::Target => D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+            TextureMode::Shared => D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
             TextureMode::Read => 0,
         }
     }
@@ -58,7 +58,15 @@ impl TextureMode {
     pub fn cpu_access_flags(&self) -> D3D11_CPU_ACCESS_FLAG {
         match self {
             TextureMode::Target => 0,
+            TextureMode::Shared => 0,
             TextureMode::Read => D3D11_CPU_ACCESS_READ,
+        }
+    }
+
+    pub fn misc_flags(&self) -> D3D11_RESOURCE_MISC_FLAG {
+        match self {
+            TextureMode::Shared => D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX | D3D11_RESOURCE_MISC_SHARED_NTHANDLE,
+            _ => 0
         }
     }
 }
@@ -128,7 +136,7 @@ impl D3D11Device {
                 Usage: mode.usage(),
                 BindFlags: mode.bind_flags(),
                 CPUAccessFlags: mode.cpu_access_flags(),
-                MiscFlags: 0,
+                MiscFlags: mode.misc_flags(),
             };
             let hr = self.0.CreateTexture2D(&desc, null_mut(), &mut ptr);
             wrap(hr, ptr, D3D11Texture2D)
@@ -143,6 +151,10 @@ impl D3D11DeviceContext {
 }
 
 impl D3D11Texture2D {
+    pub fn inner(&self) -> &ComPtr<ID3D11Texture2D> {
+        &self.0
+    }
+
     pub fn as_dxgi(&self) -> ComPtr<IDXGISurface> {
         self.0.cast().unwrap()
     }
